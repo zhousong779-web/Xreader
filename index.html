@@ -3,118 +3,148 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>小说阅读器</title>
+<title>作者后台</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
-:root{--bg:#faf8f5;--card:#fff;--text:#2b2622;--sub:#8a8078;--line:#eae4dc;--accent:#b5714a;--accent2:#e8d9c8;}
-@media (prefers-color-scheme: dark){:root{--bg:#1c1a18;--card:#26231f;--text:#eee7de;--sub:#9a9187;--line:#38332d;--accent:#d99a6c;--accent2:#3a2e24;}}
+:root{--bg:#faf8f5;--card:#fff;--text:#2b2622;--sub:#8a8078;--line:#eae4dc;--accent:#b5714a;}
+@media (prefers-color-scheme: dark){:root{--bg:#1c1a18;--card:#26231f;--text:#eee7de;--sub:#9a9187;--line:#38332d;--accent:#d99a6c;}}
 *{box-sizing:border-box;}
 body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft Yahei",sans-serif;}
-header{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);padding:12px 14px;}
+header{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);padding:12px 14px;display:flex;justify-content:space-between;align-items:center;}
 header h1{font-size:16px;margin:0;}
 main{max-width:720px;margin:0 auto;padding:14px;}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;}
-.chapter-row{display:flex;justify-content:space-between;padding:10px 4px;border-bottom:1px solid var(--line);cursor:pointer;}
+.chapter-row{display:flex;justify-content:space-between;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);}
 .chapter-row:last-child{border-bottom:none;}
 .btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;}
 .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent);}
+.btn.danger{background:#b5493f;}
 textarea,input{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;margin-bottom:8px;}
-textarea{min-height:70px;resize:vertical;font-family:inherit;}
-.para{margin:0 0 14px;line-height:2;font-size:16px;padding:6px 8px;border-radius:6px;position:relative;}
-.para:hover{background:var(--accent2);cursor:pointer;}
-.para .cnt{position:absolute;right:-4px;top:2px;font-size:11px;color:var(--sub);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:0 6px;}
-.comment{padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;}
-.comment .meta{color:var(--sub);font-size:11px;}
+textarea{min-height:160px;resize:vertical;font-family:inherit;line-height:1.6;}
+.comment{padding:6px 0;border-bottom:1px solid var(--line);font-size:12px;}
+.comment .meta{color:var(--sub);}
 .muted{color:var(--sub);font-size:12px;}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:flex-end;justify-content:center;z-index:20;}
-.overlay.open{display:flex;}
-.sheet{background:var(--card);width:100%;max-width:720px;max-height:75vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px;}
+.stat{display:flex;gap:16px;color:var(--sub);font-size:12px;}
 .row{display:flex;gap:8px;}
-.row .btn{flex:1;}
 </style>
 </head>
 <body>
-<header><h1 id="title">📖 阅读器</h1></header>
+<header><h1 id="title">🛠 作者后台</h1><span id="who" class="muted"></span></header>
 <main id="main">加载中…</main>
-<div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
 <script>
-// ↓↓↓ 换成你自己 Supabase 项目的信息（Settings → API）↓↓↓
+// ↓↓↓ 换成和 reader.html 一样的 Supabase 项目信息 ↓↓↓
 const SUPABASE_URL = "trsbxgfdozkzovtioswq";
 const SUPABASE_ANON_KEY = "ap-northeast-1";
 // ↑↑↑ 换成你自己的 ↑↑↑
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let state={page:'list', chapterId:null};
+let state={page:'login', chapterId:null};
 
-async function renderList(){
-  const {data} = await sb.from('chapters').select('id,title').order('order_num');
-  const main=document.getElementById('main');
-  if(!data || data.length===0){ main.innerHTML='<div class="card muted">暂无章节，作者还在写。</div>'; return; }
-  main.innerHTML='<div class="card">'+data.map(c=>
-    `<div class="chapter-row" onclick="openChapter('${c.id}')"><span>${esc(c.title)}</span><span>›</span></div>`
-  ).join('')+'</div>';
-}
-
-async function openChapter(id){
-  state.page='chapter'; state.chapterId=id; render();
-  sb.rpc('increment_views',{chapter:id}); // 静默计数，不影响读者
-}
-
-function esc(s){ return (s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-
-async function renderChapter(){
-  const {data:c} = await sb.from('chapters').select('*').eq('id',state.chapterId).single();
-  const main=document.getElementById('main');
-  if(!c){ main.innerHTML='<div class="card">章节不存在</div>'; return; }
-  const paras=(c.content||'').split('\n').filter(p=>p.trim());
-  const {data:pcs} = await sb.from('para_comments').select('para_index').eq('chapter_id',c.id);
-  const counts={}; (pcs||[]).forEach(p=>counts[p.para_index]=(counts[p.para_index]||0)+1);
-  let html=`<button class="btn ghost" onclick="state.page='list';render()">← 返回目录</button>
-    <div class="card"><h2 style="margin-top:0">${esc(c.title)}</h2>`;
-  paras.forEach((p,i)=>{
-    html+=`<div class="para" onclick="openPara('${c.id}',${i})">${esc(p)}${counts[i]?`<span class="cnt">💬${counts[i]}</span>`:''}</div>`;
-  });
-  html+=`</div><div class="card"><h3>章评</h3><div id="cc">加载中…</div>
-    <textarea id="ccInput" placeholder="写下你的章评…"></textarea>
-    <button class="btn" onclick="postChapterComment('${c.id}')">发表</button></div>`;
-  main.innerHTML=html;
-  loadChapterComments(c.id);
-}
-
-async function loadChapterComments(id){
-  const {data} = await sb.from('chapter_comments').select('*').eq('chapter_id',id).order('created_at',{ascending:false});
-  const el=document.getElementById('cc'); if(!el) return;
-  el.innerHTML=(data&&data.length)?data.map(c=>`<div class="comment"><div class="meta">${new Date(c.created_at).toLocaleString()}</div>${esc(c.text)}</div>`).join(''):'<div class="muted">还没有评论，来抢沙发。</div>';
-}
-
-async function postChapterComment(id){
-  const input=document.getElementById('ccInput'); const text=input.value.trim();
-  if(!text) return;
-  await sb.from('chapter_comments').insert({chapter_id:id, text});
-  input.value=''; loadChapterComments(id);
-}
-
-async function openPara(chapterId, idx){
-  document.getElementById('sheet').innerHTML='<div class="muted">加载中…</div>';
-  document.getElementById('overlay').classList.add('open');
-  const {data} = await sb.from('para_comments').select('*').eq('chapter_id',chapterId).eq('para_index',idx).order('created_at',{ascending:false});
-  document.getElementById('sheet').innerHTML=`<h3>段评（第 ${idx+1} 段）</h3>
-    <div>${(data&&data.length)?data.map(c=>`<div class="comment"><div class="meta">${new Date(c.created_at).toLocaleString()}</div>${esc(c.text)}</div>`).join(''):'<div class="muted">暂无段评</div>'}</div>
-    <textarea id="pcInput" placeholder="对这一段说点什么…"></textarea>
-    <div class="row"><button class="btn ghost" onclick="document.getElementById('overlay').classList.remove('open')">关闭</button>
-    <button class="btn" onclick="postPara('${chapterId}',${idx})">发表</button></div>`;
-}
-
-async function postPara(chapterId, idx){
-  const input=document.getElementById('pcInput'); const text=input.value.trim();
-  if(!text) return;
-  await sb.from('para_comments').insert({chapter_id:chapterId, para_index:idx, text});
-  document.getElementById('overlay').classList.remove('open');
+async function boot(){
+  const {data:{session}} = await sb.auth.getSession();
+  state.page = session ? 'list' : 'login';
   render();
 }
 
-function render(){ state.page==='list' ? renderList() : renderChapter(); }
-render();
+async function login(){
+  const email=document.getElementById('email').value.trim();
+  const pass=document.getElementById('pass').value;
+  const {error} = await sb.auth.signInWithPassword({email, password:pass});
+  if(error){ document.getElementById('loginErr').textContent = '登录失败：'+error.message; return; }
+  state.page='list'; render();
+}
+async function logout(){ await sb.auth.signOut(); state.page='login'; render(); }
+
+function renderLogin(){
+  document.getElementById('who').textContent='';
+  document.getElementById('main').innerHTML=`<div class="card">
+    <h3>作者登录</h3>
+    <input id="email" placeholder="邮箱">
+    <input id="pass" type="password" placeholder="密码">
+    <div id="loginErr" style="color:#b5493f;font-size:12px;margin-bottom:8px"></div>
+    <button class="btn" onclick="login()">登录</button>
+    <p class="muted">账号在 Supabase 后台的 Authentication 里创建，只有你知道密码。</p>
+  </div>`;
+}
+
+async function listChapters(){
+  const {data} = await sb.from('chapters').select('*').order('order_num');
+  return data||[];
+}
+
+async function renderList(){
+  const {data:{user}} = await sb.auth.getUser();
+  document.getElementById('who').innerHTML = (user?esc(user.email):'')+' <button class="btn ghost" onclick="logout()">退出</button>';
+  const chapters = await listChapters();
+  let totalViews=0; chapters.forEach(c=>totalViews+=c.views||0);
+  document.getElementById('main').innerHTML = `
+    <div class="card"><div class="stat"><span>共 ${chapters.length} 章</span><span>总浏览 👁 ${totalViews}</span></div></div>
+    <div class="card"><button class="btn" onclick="state.page='edit';state.chapterId=null;render()">＋ 新建章节</button></div>
+    <div class="card">${chapters.length?chapters.map(c=>`
+      <div class="chapter-row">
+        <span onclick="state.chapterId='${c.id}';state.page='edit';render()" style="cursor:pointer">${esc(c.title)}</span>
+        <span class="muted">👁${c.views||0}
+          <button class="btn ghost" style="padding:4px 8px" onclick="state.chapterId='${c.id}';state.page='edit';render()">编辑</button>
+          <button class="btn danger" style="padding:4px 8px" onclick="delChapter('${c.id}')">删除</button>
+        </span>
+      </div>`).join(''):'<div class="muted">还没有章节，点上方新建。</div>'}</div>`;
+}
+
+async function delChapter(id){
+  if(!confirm('确定删除该章节吗？关联评论也会被删除。')) return;
+  await sb.from('chapters').delete().eq('id',id);
+  render();
+}
+
+async function renderEdit(){
+  const isNew=!state.chapterId;
+  let c={title:'',content:''};
+  if(!isNew){ const {data} = await sb.from('chapters').select('*').eq('id',state.chapterId).single(); if(data) c=data; }
+  document.getElementById('main').innerHTML = `
+    <button class="btn ghost" onclick="state.page='list';render()">← 返回列表</button>
+    <div class="card">
+      <h3>${isNew?'新建章节':'编辑章节'}</h3>
+      <input id="editTitle" placeholder="章节标题" value="${esc(c.title)}">
+      <textarea id="editContent" placeholder="正文，每一行是一个自然段">${esc(c.content||'')}</textarea>
+      <button class="btn" onclick="saveChapter(${isNew?'null':`'${c.id}'`})">保存并发布</button>
+      ${isNew?'':'<h4 style="margin-bottom:4px">该章节评论</h4><div id="cm" class="muted">加载中…</div>'}
+    </div>`;
+  if(!isNew) loadComments(c.id);
+}
+
+async function loadComments(chapterId){
+  const [{data:cc},{data:pc}] = await Promise.all([
+    sb.from('chapter_comments').select('*').eq('chapter_id',chapterId).order('created_at',{ascending:false}),
+    sb.from('para_comments').select('*').eq('chapter_id',chapterId).order('created_at',{ascending:false})
+  ]);
+  const el=document.getElementById('cm'); if(!el) return;
+  el.innerHTML = `<div class="muted">章评 ${(cc||[]).length} 条 · 段评 ${(pc||[]).length} 条</div>`+
+    (cc||[]).map(c=>`<div class="comment"><span class="meta">[章评] ${new Date(c.created_at).toLocaleString()}</span> ${esc(c.text)} <button class="btn danger" style="padding:2px 6px;font-size:11px" onclick="delComment('chapter_comments','${c.id}','${chapterId}')">删</button></div>`).join('')+
+    (pc||[]).map(c=>`<div class="comment"><span class="meta">[第${c.para_index+1}段] ${new Date(c.created_at).toLocaleString()}</span> ${esc(c.text)} <button class="btn danger" style="padding:2px 6px;font-size:11px" onclick="delComment('para_comments','${c.id}','${chapterId}')">删</button></div>`).join('');
+}
+
+async function delComment(table,id,chapterId){
+  await sb.from(table).delete().eq('id',id);
+  loadComments(chapterId);
+}
+
+async function saveChapter(id){
+  const title=document.getElementById('editTitle').value.trim();
+  const content=document.getElementById('editContent').value;
+  if(!title){ alert('请填写标题'); return; }
+  if(id){ await sb.from('chapters').update({title,content}).eq('id',id); }
+  else { await sb.from('chapters').insert({title,content}); }
+  state.page='list'; state.chapterId=null; render();
+}
+
+function esc(s){ return (s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function render(){
+  document.getElementById('title').textContent = state.page==='login'?'🛠 作者登录':'🛠 作者后台';
+  if(state.page==='login') renderLogin();
+  else if(state.page==='list') renderList();
+  else if(state.page==='edit') renderEdit();
+}
+boot();
 </script>
 </body>
 </html>
